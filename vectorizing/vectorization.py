@@ -55,19 +55,22 @@ class Vectorizer:
         return [name for name, _ in data]
 
     def vectorize_article_mean(self, src_file, word_limit=200):
-        article, lang = self.text_process.article_process(src_file, word_limit=word_limit, limit=True)
-        if lang == 'ru' or lang == 'en':
-            vector = np.zeros(300)
-            vector_c = 0.0
-            for part, weight in sum_weights.items():
-                if len(article[part]) > 0:
-                    vector += self.vectorize_sentence_mean(article[part], lang)
+        try:
+            article, lang = self.text_process.article_process(src_file, word_limit=word_limit, limit=True)
+            if lang == 'ru' or lang == 'en':
+                vector = np.zeros(300)
+                vector_c = 0.0
+                for part, weight in sum_weights.items():
+                    if len(article[part]) > 0:
+                        vector += self.vectorize_sentence_mean(article[part], lang)
 
-            if vector_c > 0:
-                vector /= vector_c
-            return vector, lang
-        else:
-            return None, None
+                if vector_c > 0:
+                    vector /= vector_c
+                return vector, lang
+        except Exception as e:
+            print(str(e))
+
+        return None, None
 
     def vectorize_article(self, src_file, word_limit=200):
         article, lang = self.text_process.article_process(src_file, word_limit=word_limit, limit=True)

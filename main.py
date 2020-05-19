@@ -111,6 +111,3 @@ print(labels)
 # print('clustering 1000 examples time %.2f' % (time.time() - start))
 # print(labels)
 
-
-
-
