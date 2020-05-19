@@ -40,3 +40,5 @@ for file in files:
 
 with open(temp_corp_3, "w") as file:
     file.write(dumps(list(corpus)))
+
+print("hi git")
