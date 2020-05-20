@@ -6,7 +6,7 @@ import pickle
 
 class DBSCAN_algo_wrapper:
     def __init__(self):
-        self.wrapped = DBSCAN(eps=0.7, min_samples=5)
+        self.wrapped = DBSCAN(eps=10, min_samples=100, algorithm='brute')
         self.data = []
         self.indexes =[]
 
@@ -18,30 +18,3 @@ class DBSCAN_algo_wrapper:
     def predict(self,data):
         return self.wrapped.fit_predict(data)
 
-model = DBSCAN_algo_wrapper()
-
-def do(input_data, draw_plot = False) -> common.AlgoInfo:
-    global model
-    model.fit(input_data)
-    if draw_plot:
-        common.draw(model.data, model.indexes)
-    return common.AlgoInfo("DBSCAN", model.indexes)
-
-
-def predict(el) -> []:
-    global model
-    return model.predict(el)
-
-def save(src):
-    global model
-    with open(src, "wb") as file:
-        file.write(pickle.dumps(model, pickle.HIGHEST_PROTOCOL))
-    del model
-
-def load(src):
-    global model
-    pickle.load(open(src, "rb"))
-
-def flush():
-    global model
-    del model

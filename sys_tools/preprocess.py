@@ -21,3 +21,13 @@ def save_object(obj, src_file):
 def load_data(src_file):
     with open(src_file, "r") as file:
         return loads(file.read())
+
+def merge_files(list_files, target_src):
+    data = []
+    for file in list_files:
+        with open(file, "r") as f:
+            data += loads(f.read())
+
+
+    with open(target_src, "w") as f:
+        f.write(dumps(data))

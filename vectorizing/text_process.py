@@ -4,6 +4,7 @@ import sys
 from ufal.udpipe import Model, Pipeline, ProcessingError
 from langdetect import detect
 import time
+from sys_tools import preprocess
 
 def parse_article(text):
     soup = BeautifulSoup(text, "html.parser")
@@ -160,6 +161,20 @@ class TextProcess:
         text = text.lower().translate(self.p_tbl).split(' ')
         return text
 
+    def gen_tagged_corpus(self, file_list, word_limit=100):
+        corpus = []
+        for file in file_list:
+            if len(corpus) == 10000:
+                break
+            article, lang = self.article_process(file, word_limit=word_limit, limit=True)
+            sentance = []
+            if article != [] and lang != '':
+                for key, value in article.items():
+                    if key != 'time':
+                        sentance += value
+                corpus.append(sentance)
+        return corpus
+
     def article_process(self, src_file, word_limit=200, limit=True):
         with open(src_file, "r") as file:
             article = parse_article(file.read())
@@ -187,7 +202,7 @@ class TextProcess:
                     return article, lang
         return [], ''
 
-    def tag(self, text, lang="en"):
+    def tag(self, text, lang):
         if lang == "en":
             return process(self.process_pipeline_en, text=text.lower())
         elif lang == "ru":
@@ -196,8 +211,8 @@ class TextProcess:
 
 
 def main():
-    textprocess = TextProcess(keep_props=True, modelfile_en='vectorizing/__data__/syntagen.udpipe',
-                              modelfile_ru='vectorizing/__data__/syntageru.model')
+    textprocess = TextProcess(keep_props=True, modelfile_en='/home/vova/PycharmProjects/TG/vectorizing/__data__/syntagen.udpipe',
+                              modelfile_ru='/home/vova/PycharmProjects/TG/vectorizing/__data__/syntageru.model')
     # corpus = []
     # i=0
     # for __data__ in list_files('2703'):
@@ -207,10 +222,13 @@ def main():
     #     corpus.append(textprocess.article_process(__data__, limit=False))
     # with open('data2703', "w") as file:
     #     file.write(dumps(corpus))
-    start = time.time()
-    print(textprocess.article_process('/home/vova/PycharmProjects/TGmain/2703/20200427/00/2819513471512731.html'))
-    print('total time %f' % (time.time() - start))
+    # start = time.time()
+    # print(textprocess.article_process('/home/vova/PycharmProjects/TGmain/2703/20200427/00/2819513471512731.html'))
+    # print('total time %f' % (time.time() - start))
     # print(textprocess.article_process('2703/20200427/00/256376422603845959.html'))
+    
+    corp = textprocess.gen_tagged_corpus(preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:10])
+    preprocess.save_object(corp, '/home/vova/PycharmProjects/TG/__data__/text_corp')
 
 
 if __name__ == "__main__":

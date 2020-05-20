@@ -53,13 +53,11 @@ for file in files:
 
     if i % 10000 == 0:
         print('saving last data')
-        with open(thread_file_src, "w") as f:
-            f.write(dumps(list(corpus)))
+        save_object(corpus, thread_file_src)
 
     vector, lang = vectorizer.vectorize_article_mean(file, word_limit=100)
 
     if lang:
         corpus.append([list(vector), lang])
 
-with open(thread_file_src, "w") as file:
-    file.write(dumps(list(corpus)))
+save_object(corpus, thread_file_src)

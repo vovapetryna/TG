@@ -6,7 +6,7 @@ import pickle
 
 class AffinityPropagation_algo_wrapper:
     def __init__(self):
-        self.wrapped = AffinityPropagation()
+        self.wrapped = AffinityPropagation(damping=0.9, affinity="precomputed")
         self.data = []
         self.indexes = []
 
@@ -17,30 +17,3 @@ class AffinityPropagation_algo_wrapper:
 
     def predict(self,data):
         return self.wrapped.fit_predict(data)
-
-model = AffinityPropagation_algo_wrapper()
-
-def do(input_data, draw_plot=False) -> common.AlgoInfo:
-    global model
-    model.fit(input_data)
-    if draw_plot:
-        common.draw(model.data, model.indexes)
-    return common.AlgoInfo("AffinityPropagation", model.indexes)
-
-def load(src):
-    global model
-    pickle.load(open(src, "rb"))
-
-def flush():
-    global model
-    del model
-
-def save(src):
-    global model
-    with open(src, "wb") as file:
-        file.write(pickle.dumps(model, pickle.HIGHEST_PROTOCOL))
-    del model
-
-def predict(el) -> []:
-    global model
-    return model.predict(el)
