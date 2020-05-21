@@ -21,7 +21,7 @@ temp_corp_4 = os.path.join(dir, '__data__', 'temp_corp_4')
 test_set_file = os.path.join(dir, '__data__', 'test_set.json')
 
 files = list_files('/home/vova/PycharmProjects/TGmain/2703')
-files = random.sample(files, 800000)
+files = random.sample(files, 50000)
 # files = random.sample(files, 3000)
 corpus = []
 

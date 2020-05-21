@@ -19,15 +19,6 @@ sum_weights = {"name": 0.1,
                "h1": 0.25,
                "p": 0.3}
 
-# sum_weights = {"name": 0.2,
-#                "title": 0.2,
-#                "description": 0.2,
-#                "h1": 0.15,
-#                "h2": 0.05,
-#                "h3": 0.05,
-#                "h4": 0.05,
-#                "b": 0.05,
-#                "p": 0.05}
 
 
 class Vectorizer:
@@ -48,9 +39,9 @@ class Vectorizer:
 
     def n_nearest(self, vector, lang, n_limit = 10):
         if lang == 'en':
-            data = self.model_en.most_similar(positive=[vector], topn=n_limit)
+            data = self.model_en.most_similar(positive=[vector], topn=n_limit, restrict_vocab=10000)
         else:
-            data = self.model_ru.most_similar(positive=[vector], topn=n_limit)
+            data = self.model_ru.most_similar(positive=[vector], topn=n_limit, restrict_vocab=10000)
 
         return [name for name, _ in data]
 
@@ -111,26 +102,30 @@ class Vectorizer:
 
 
 def main():
-    vectorizer = Vectorizer(model_file_en='vectorizing/__data__/model_en.bin', model_file_ru='vectorizing/__data__/model_ru.bin',
-                            pipe_en='vectorizing/__data__/syntagen.udpipe', pipe_ru='vectorizing/__data__/syntagru.model')
+    vectorizer = Vectorizer(model_file_en='__data__/model_en.bin', model_file_ru='__data__/model_ru.bin',
+                            pipe_en='__data__/syntagen.udpipe', pipe_ru='__data__/syntagru.model')
 
     start = time.time()
-    vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993065328833743.html',
-                                                  word_limit=100)
-    print(vectorizer.n_nearest(vector, 'en'))
-    vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993066831009800.html',
-                                                  word_limit=100)
-    print(vectorizer.n_nearest(vector, 'en'))
-    vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/619043747613953010.html',
-                                                  word_limit=100)
-    print(vectorizer.n_nearest(vector, 'ru'))
-    vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6450858316899294513.html',
-                                                  word_limit=100)
-    print(vectorizer.n_nearest(vector, 'en'))
-    vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6679535024845809554.html',
-                                                  word_limit=100)
-    print(vectorizer.n_nearest(vector, 'en'))
-    print('time for vectorizing %.2f' % ((time.time() - start) / 3))
+    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993065328833743.html',
+    #                                               word_limit=100)
+    # print(vectorizer.n_nearest(vector, 'en'))
+    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993066831009800.html',
+    #                                               word_limit=100)
+    # print(vectorizer.n_nearest(vector, 'en'))
+    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/619043747613953010.html',
+    #                                               word_limit=100)
+    # print(vectorizer.n_nearest(vector, 'ru'))
+    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6450858316899294513.html',
+    #                                               word_limit=100)
+    # print(vectorizer.n_nearest(vector, 'en'))
+    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6679535024845809554.html',
+    #                                               word_limit=100)
+    # print(vectorizer.n_nearest(vector, 'en'))
+    # print('time for vectorizing %.2f' % ((time.time() - start) / 3))
+
+    vector = np.array(vectorizer.model_ru.word_vec('политика_NOUN'))
+    vector += np.array(vectorizer.model_ru.word_vec('ложь_NOUN'))
+    print(vectorizer.n_nearest(vector / 3, 'ru'))
 
 
 if __name__ == "__main__":

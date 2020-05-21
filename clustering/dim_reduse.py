@@ -16,7 +16,7 @@ class umap_reduse:
 
 
 def main():
-    temp_corp = '/home/vova/PycharmProjects/TG/__data__/labels_load'
+    temp_corp = '/home/vova/PycharmProjects/TG/__data__/temp_corp_labels'
     train_data = np.array(load_data(temp_corp))
     vectors = train_data[:,0]
     labels = train_data[:,1]

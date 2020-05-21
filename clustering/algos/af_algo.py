@@ -3,17 +3,23 @@
 from sklearn.cluster import AffinityPropagation
 import clustering.common as common
 import pickle
+from sklearn.metrics.pairwise import cosine_similarity
 
 class AffinityPropagation_algo_wrapper:
-    def __init__(self):
-        self.wrapped = AffinityPropagation(damping=0.9, affinity="precomputed")
-        self.data = []
-        self.indexes = []
+    def __init__(self, src_data=None):
+        if src_data is None:
+            self.wrapped = AffinityPropagation(damping=0.9, affinity="precomputed")
+        else:
+            self.load(src_data)
 
     def fit(self,data):
-        self.wrapped.fit(data)
-        self.data = data
-        self.indexes = self.wrapped.labels_
+        self.wrapped.fit(cosine_similarity(data))
 
     def predict(self,data):
-        return self.wrapped.fit_predict(data)
+        return self.wrapped.fit_predict(cosine_similarity(data))
+
+    def save(self, src_file):
+        pickle.dump(self.wrapped, open(src_file, "wb"))
+
+    def load(self, src_file):
+        self.wrapped = pickle.load(open(src_file, "rb"))
