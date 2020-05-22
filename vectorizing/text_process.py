@@ -27,30 +27,6 @@ def parse_article(text):
         for h1i in h1:
             h1_content += " " + h1i.text.strip()
 
-    # h2 = soup.find_all("h2")
-    # h2_content = ""
-    # if h2:
-    #     for h2i in h2:
-    #         h2_content += " " + h2i.text.strip()
-    #
-    # h3 = soup.find_all("h3")
-    # h3_content = ""
-    # if h3:
-    #     for h3i in h3:
-    #         h3_content += " " + h3i.text.strip()
-    #
-    # h4 = soup.find_all("h4")
-    # h4_content = ""
-    # if h4:
-    #     for h4i in h4:
-    #         h4_content += " " + h4i.text.strip()
-    #
-    # b = soup.find_all("b")
-    # b_content = ""
-    # if b:
-    #     for bi in b:
-    #         b_content += " " + bi.text.strip()
-
     p = soup.find_all("p")
     p_content = ""
     if p:
@@ -69,9 +45,7 @@ def parse_article(text):
             "p": p_content,
             "text": (name + " " + title + " "
             + description + " " + h1_content + " "
-            # + h2_content + " " + h3_content + " "
-            # + h4_content + " " + b_content + " "
-            + p_content)[:100]}
+            + p_content)[:600]}
 
 
 def process(pipeline, text, keep_pos=True, keep_punct=False):
@@ -177,28 +151,16 @@ class TextProcess:
 
     def article_process(self, src_file, word_limit=200, limit=True):
         with open(src_file, "r") as file:
-            article = parse_article(file.read())
-            if len(article["text"]) > 40:
-                lang = detect(article["text"])
-                if lang == 'ru' or lang == 'en':
-                    words = 0
-                    for key, value in article.items():
-                        if key != 'time':
-                            if words == word_limit:
-                                article[key] = []
-                            else:
-                                if self.keep_props:
-                                    article[key] = self.tag(value, lang)
-                                else:
-                                    article[key] = self.text_clear(value)
-                                    article[key] = [word for word in article[key] if len(word) > 1]
+            file_data = file.read()
+            article = parse_article(file_data)
 
-                                if limit:
-                                    if word_limit - words - len(article[key]) < 0:
-                                        article[key] = article[key][:word_limit - words]
-                                        words = word_limit
-                                    else:
-                                        words += len(article[key])
+            if len(article["text"]) > 40:
+                lang = detect(article["text"][:100])
+                if lang == 'ru' or lang == 'en':
+                    article["tagged_text"] = self.tag(article["text"], lang)[:word_limit]
+
+                    if article["tagged_text"] == []:
+                        return [], ''
                     return article, lang
         return [], ''
 

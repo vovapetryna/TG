@@ -14,12 +14,12 @@ data_dir = os.path.join(dir, '__data__')
 
 data_src = '/home/vova/PycharmProjects/TGmain/2703'
 
-target_lang = 'ru'
+target_lang = 'en'
 
 vectorizer = Vectorizer(model_file_en=word2vec_en, model_file_ru=word2vec_ru,
                             pipe_en=pipe_en, pipe_ru=pipe_ru)
 
-files = random.sample(list_files(data_src), 1000)
+files = random.sample(list_files(data_src), 500)
 
 test_data = []
 
@@ -28,10 +28,10 @@ i = 0
 for file in files:
     print('file id : %d' % i)
     if i % 100 == 0:
-        save_object(test_data, os.path.join(data_dir, 'labels_ru'))
+        save_object(test_data, os.path.join(data_dir, 'labels_en'))
     i += 1
 
-    vector, lang = vectorizer.vectorize_article_mean(file, word_limit=100)
+    vector, lang, _ = vectorizer.vectorize_article_mean(file)
     article = parse_article(open(file, "r"))
     if lang == target_lang:
         print('\033[1m' + article['title'] + '\033[0m')
@@ -48,7 +48,7 @@ for file in files:
             print(str(e))
 
 # save_object(test_data, '/home/vova/PycharmProjects/TG/__data__/labels_load')
-save_object(test_data, os.path.join(data_dir, 'labels_ru'))
+save_object(test_data, os.path.join(data_dir, 'labels_en'))
 
 
 

@@ -20,10 +20,10 @@ labeled_corp = os.path.join(dir, '__data__', 'temp_corp_labels')
 labeled_corp_2 = os.path.join(dir, '__data__', 'temp_corp_labels_2')
 test_set_file = os.path.join(dir, '__data__', 'test_set.json')
 
-model_path = os.path.join(dir, 'clustering', '__data__',  'model_k_10')
+model_path = os.path.join(dir, 'clustering', '__data__',  'model_ru')
 
 vectorizer = Vectorizer(model_file_ru=word2vec_ru, model_file_en=word2vec_en,
-                       pipe_en=pipe_en, pipe_ru=pipe_ru)
+                       pipe_en=pipe_en, pipe_ru=pipe_ru, restrict_vocab=100000, word_limit=300)
 
 """LOAD TRAINING DATA"""
 train_data = load_data(temp_corp)

@@ -21,12 +21,12 @@ temp_corp_4 = os.path.join(dir, '__data__', 'temp_corp_4')
 test_set_file = os.path.join(dir, '__data__', 'test_set.json')
 
 files = list_files('/home/vova/PycharmProjects/TGmain/2703')
-files = random.sample(files, 50000)
+files = random.sample(files, 100000)
 # files = random.sample(files, 3000)
 corpus = []
 
 vectorizer = Vectorizer(model_file_en=word2vec_en, model_file_ru=word2vec_ru,
-                            pipe_en=pipe_en, pipe_ru=pipe_ru)
+                            pipe_en=pipe_en, pipe_ru=pipe_ru, restrict_vocab=200000, word_limit=100)
 
 i = 0
 
@@ -55,7 +55,7 @@ for file in files:
         print('saving last data')
         save_object(corpus, thread_file_src)
 
-    vector, lang = vectorizer.vectorize_article_mean(file, word_limit=100)
+    vector, lang, _ = vectorizer.vectorize_article_mean(file)
 
     if lang:
         corpus.append([list(vector), lang])

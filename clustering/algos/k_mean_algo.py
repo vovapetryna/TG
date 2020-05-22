@@ -7,7 +7,7 @@ import pickle
 class K_Means_wrapper:
     def __init__(self, src_data=None):
         if src_data is None:
-            self.wrapped = KMeans(n_clusters=10)
+            self.wrapped = KMeans(n_clusters=16, max_iter=500)
         else:
             self.load(src_data)
 

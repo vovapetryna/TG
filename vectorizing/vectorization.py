@@ -22,14 +22,15 @@ sum_weights = {"name": 0.1,
 
 
 class Vectorizer:
-    def __init__(self, model_file_ru, model_file_en, pipe_ru, pipe_en):
+    def __init__(self, model_file_ru, model_file_en, pipe_ru, pipe_en, restrict_vocab=500000, word_limit=100):
+        self.word_limit = word_limit
         print('vectorizer start loading')
         start_load = time.time()
 
-        self.model_ru = gensim.models.KeyedVectors.load_word2vec_format(model_file_ru, binary=True)
+        self.model_ru = gensim.models.KeyedVectors.load_word2vec_format(model_file_ru, binary=True, limit=restrict_vocab)
         print('loaded RU word2vec : time %f' % (time.time() - start_load))
 
-        self.model_en = gensim.models.KeyedVectors.load_word2vec_format(model_file_en, binary=True)
+        self.model_en = gensim.models.KeyedVectors.load_word2vec_format(model_file_en, binary=True, limit=restrict_vocab)
         print('loaded EN word2vec : time %f' % (time.time() - start_load))
 
         self.text_process = TextProcess(modelfile_ru=pipe_ru, modelfile_en=pipe_en)
@@ -45,59 +46,62 @@ class Vectorizer:
 
         return [name for name, _ in data]
 
-    def vectorize_article_mean(self, src_file, word_limit=200):
+    def vectorize_article_mean(self, src_file):
         try:
-            article, lang = self.text_process.article_process(src_file, word_limit=word_limit, limit=True)
+            article, lang = self.text_process.article_process(src_file, word_limit=self.word_limit, limit=True)
             if lang == 'ru' or lang == 'en':
-                vector = np.zeros(300)
-                vector_c = 0.0
-                for part, weight in sum_weights.items():
-                    if len(article[part]) > 0:
-                        vector += self.vectorize_sentence_mean(article[part], lang)
-
-                if vector_c > 0:
-                    vector /= vector_c
-                return vector, lang
+                vector = np.array(self.vectorize_sentence_mean(article["tagged_text"], lang))
+                return vector, lang, article
         except Exception as e:
             print(str(e))
+        return None, None, None
 
-        return None, None
+    def vectorize_multiple_files(self, file_list):
+        corpus_vecs = {"ru": [], "en": []}
+        corpus_articles = {"ru": [], "en": []}
+        for file in file_list:
+            vec, lang, article = self.vectorize_article_mean(file)
+            if lang is not None:
+                corpus_vecs[lang].append(vec)
+                corpus_articles[lang].append(article)
+        return corpus_vecs, corpus_articles
 
-    def vectorize_article(self, src_file, word_limit=200):
-        article, lang = self.text_process.article_process(src_file, word_limit=word_limit, limit=True)
 
-        if lang == 'ru' or lang == 'en':
-            vector = np.zeros(300)
-
-            for part, weight in sum_weights.items():
-                if len(article[part]) > 0:
-                    vector += weight * self.vectorize_sentence_mean(article[part], lang)
-
-            return vector, lang
-        else:
-            return None, None
+    # def vectorize_article_mean(self, src_file):
+    #     try:
+    #         start = time.time()
+    #         article, lang = self.text_process.article_process(src_file, word_limit=self.word_limit, limit=True)
+    #         print('time for parsing %.2f' % (time.time() - start))
+    #         if lang == 'ru' or lang == 'en':
+    #             vector = np.zeros(300)
+    #             vector_c = 0.0
+    #             for part, weight in sum_weights.items():
+    #                 if len(article[part]) > 0:
+    #                     vector += self.vectorize_sentence_mean(article[part], lang)
+    #
+    #             if vector_c > 0:
+    #                 vector /= vector_c
+    #             return vector, lang
+    #     except Exception as e:
+    #         print(str(e))
+    #
+    #     return None, None
 
     def vectorize_sentence_mean(self, text, lang='ru'):
         vector = np.zeros(300)
         words = .0
-        loss = .0
         if lang == 'en':
             for word in text:
                 if word in self.model_en:
                     words += 1.0
                     vector += np.array(self.model_en.word_vec(word))
-                else:
-                    loss += 1.0
         else:
             for word in text:
                 if word in self.model_ru:
                     words += 1.0
                     vector += np.array(self.model_ru.word_vec(word))
-                else:
-                    loss += 1.0
         if words > 0:
             vector /= words
-        # print('info loss factor %.2f' % (loss / len(text)))
         return vector
 
 
@@ -106,26 +110,21 @@ def main():
                             pipe_en='__data__/syntagen.udpipe', pipe_ru='__data__/syntagru.model')
 
     start = time.time()
-    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993065328833743.html',
-    #                                               word_limit=100)
-    # print(vectorizer.n_nearest(vector, 'en'))
-    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993066831009800.html',
-    #                                               word_limit=100)
-    # print(vectorizer.n_nearest(vector, 'en'))
-    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/619043747613953010.html',
-    #                                               word_limit=100)
-    # print(vectorizer.n_nearest(vector, 'ru'))
-    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6450858316899294513.html',
-    #                                               word_limit=100)
-    # print(vectorizer.n_nearest(vector, 'en'))
-    # vector, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6679535024845809554.html',
-    #                                               word_limit=100)
-    # print(vectorizer.n_nearest(vector, 'en'))
-    # print('time for vectorizing %.2f' % ((time.time() - start) / 3))
+    vector, _, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993065328833743.html')
+    print(vectorizer.n_nearest(vector, 'en'))
+    vector, _, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/993066831009800.html')
+    print(vectorizer.n_nearest(vector, 'en'))
+    vector, _, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/619043747613953010.html')
+    print(vectorizer.n_nearest(vector, 'ru'))
+    vector, _, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6450858316899294513.html')
+    print(vectorizer.n_nearest(vector, 'en'))
+    vector, _, _ = vectorizer.vectorize_article_mean('/home/vova/PycharmProjects/TGmain/2703/20200427/01/6679535024845809554.html')
+    print(vectorizer.n_nearest(vector, 'en'))
+    print('time for vectorizing %.2f' % ((time.time() - start) / 3))
 
-    vector = np.array(vectorizer.model_ru.word_vec('политика_NOUN'))
-    vector += np.array(vectorizer.model_ru.word_vec('ложь_NOUN'))
-    print(vectorizer.n_nearest(vector / 3, 'ru'))
+    # vector = np.array(vectorizer.model_ru.word_vec('политика_NOUN'))
+    # vector += np.array(vectorizer.model_ru.word_vec('ложь_NOUN'))
+    # print(vectorizer.n_nearest(vector / 3, 'ru'))
 
 
 if __name__ == "__main__":

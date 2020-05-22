@@ -8,12 +8,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 class AffinityPropagation_algo_wrapper:
     def __init__(self, src_data=None):
         if src_data is None:
-            self.wrapped = AffinityPropagation(damping=0.9, affinity="precomputed")
+            self.wrapped = AffinityPropagation(damping=0.5, affinity="precomputed", convergence_iter=20)
         else:
             self.load(src_data)
 
     def fit(self,data):
-        self.wrapped.fit(cosine_similarity(data))
+        return self.wrapped.fit(cosine_similarity(data))
 
     def predict(self,data):
         return self.wrapped.fit_predict(cosine_similarity(data))
