@@ -15,7 +15,6 @@ class news_thred:
     def form_thread(self, file_list):
         threads = {"ru": {}, "en": {}}
 
-        start = time.time()
         corpus, articles = self.vectorizer.vectorize_multiple_files(file_list)
 
         self.algo_ru.fit(corpus["ru"])
@@ -42,8 +41,6 @@ class news_thred:
         for key in threads['en'].keys():
             print(threads['en'][key])
 
-        print('time for threading %.2f' % (time.time() - start))
-
         for key, value in threads['en'].items():
             print(str(key) + ' ' + str(len(value)))
 
@@ -56,9 +53,12 @@ def main():
                                           restrict_vocab=200000, word_limit=100)
     n_t = news_thred(vectorizer=vectorizer)
 
-    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:1000]
+    start = time.time()
+    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:5000]
 
     n_t.form_thread(files)
+
+    print('time for threading %.2f' % (time.time() - start))
 
 
 if __name__ == "__main__":

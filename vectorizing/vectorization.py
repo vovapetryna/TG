@@ -59,9 +59,10 @@ class Vectorizer:
     def vectorize_multiple_files(self, file_list):
         corpus_vecs = {"ru": [], "en": []}
         corpus_articles = {"ru": [], "en": []}
+        zerro = np.zeros(300)
         for file in file_list:
             vec, lang, article = self.vectorize_article_mean(file)
-            if lang is not None:
+            if lang is not None and vec is not None:
                 corpus_vecs[lang].append(vec)
                 corpus_articles[lang].append(article)
         return corpus_vecs, corpus_articles
@@ -102,6 +103,8 @@ class Vectorizer:
                     vector += np.array(self.model_ru.word_vec(word))
         if words > 0:
             vector /= words
+        else:
+            return None
         return vector
 
 
