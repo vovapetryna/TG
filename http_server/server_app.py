@@ -4,6 +4,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import logging
 from threading import Timer
 from furl import furl
+from socketserver import ThreadingMixIn
+import time
 
 Entities = {}
 
@@ -41,7 +43,7 @@ class HandlerClass(BaseHTTPRequestHandler):
         # apply filters <period>
         # apply filters <lang_code>
         # apply filters <category>
-
+        
         self._set_response()
         # valid json format expected
         self.wfile.write(str(filtered_data).encode('utf-8'))
@@ -83,10 +85,14 @@ class HandlerClass(BaseHTTPRequestHandler):
         else:
             self.wfile.write("HTTP/1.1 404 Item Does not exist".encode('utf-8'))
 
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    pass
+
+
 def init_server(host = '', port=8080):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
-    httpd = HTTPServer(server_address, HandlerClass)
+    httpd = ThreadedHTTPServer(server_address, HandlerClass)
     logging.info('Starting httpd...\n')
     try:
         httpd.serve_forever()
