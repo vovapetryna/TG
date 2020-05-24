@@ -28,6 +28,10 @@ def merge_files(list_files, target_src):
         with open(file, "r") as f:
             data += loads(f.read())
 
-
     with open(target_src, "w") as f:
         f.write(dumps(data))
+
+def read_files_to_queue(file_list, queue):
+    for file in file_list:
+        with open(file, "r") as f:
+            queue.put(f.read())

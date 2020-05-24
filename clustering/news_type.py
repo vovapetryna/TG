@@ -1,7 +1,23 @@
 from clustering.algos import k_mean_algo
+from vectorizing import vectorization
+from sys_tools import preprocess
 
-clusters_en = {4: [11, 10, 3], 1: [7, 3, 4, 6, 2, 1, 8], 5: [0, 12], 2: [5, 4, 15], 6: [8], 3: [15, 13], 8: [12, 8]}
-clusters_ru = {1: [0, 14, 10, 4, 3, 12, 7, 5, 15, 6, 11], 2: [3], 5: [14, 9], 4: [8], 8: [1], 7: [2], 3: [13]}
+clusters_en = {1: [0, 5, 6,14,16,17,20,21,22,25,31,33,34],
+               2: [2,4,7,24,32],
+               3: [10, 15],
+               4: [12, 13,18,23,29],
+               5: [8, 9, 27, 30],
+               6: [1],
+               7: [19],
+               8: [3, 11, 26, 28]}
+clusters_ru = {1: [0, 1, 2, 6, 9, 14, 21, 22, 23, 24, 25, 28, 30, 31, 32, 33, 34],
+               2: [11, 17, 18, 20, 29],
+               3: [3],
+               4: [8, 13],
+               5: [4, 10],
+               6: [7],
+               7: [27],
+               8: [5, 12, 15, 26, 19, 16]}
 clusters_data = {'ru': clusters_ru,
                  'en': clusters_en}
 
@@ -42,13 +58,38 @@ class news_categories:
         elif lang == 'ru':
             return self.cluster_algo_ru.predict(vectors)
 
-    def predict_single(self, file_src):
-        vector, lang, _ = self.vectorizer.vectorize_article_mean(file_src)
+    def predict_single(self, file_src, names=True):
+        vector, lang, article = self.vectorizer.vectorize_article_mean(file_src)
+        if vector is not None and lang is not None:
+            cluster = self.cluster_predict([vector], lang)[0]
+            if cluster == 12 and lang == 'en':
+                print(article["title"])
+            return predict_cluster(cluster, lang, names=names)
 
+    def predict_single_vector(self, vector, lang, names=True):
         cluster = self.cluster_predict([vector], lang)[0]
-        return predict_cluster(cluster, lang, names=True)
+        return predict_cluster(cluster, lang, names=names)
 
     def predict_multiple(self, vectors, lang):
         clusters = self.cluster_predict(vectors, lang)
 
-        return map(lambda cluster: predict_cluster(cluster, lang, names=True), clusters)
+        return list(map(lambda cluster: predict_cluster(cluster, lang, names=True), clusters))
+
+def main():
+    vectorizer = vectorization.Vectorizer(pipe_en='/home/vova/PycharmProjects/TG/vectorizing/__data__/syntagen.udpipe',
+                                          model_file_en='/home/vova/PycharmProjects/TG/vectorizing/__data__/model_en.bin',
+                                          pipe_ru='/home/vova/PycharmProjects/TG/vectorizing/__data__/syntagru.model',
+                                          model_file_ru='/home/vova/PycharmProjects/TG/vectorizing/__data__/model_ru.bin',
+                                          restrict_vocab=200000, word_limit=100)
+
+    n_c = news_categories(vectorizer, model_file_ru='/home/vova/PycharmProjects/TG/clustering/__data__/model_ru',
+                          model_file_en='/home/vova/PycharmProjects/TG/clustering/__data__/model_en')
+
+    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:30000]
+
+    for file in files:
+        n_c.predict_single(file)
+
+
+if __name__ == "__main__":
+    main()

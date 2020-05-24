@@ -9,7 +9,6 @@ class AgglomerativeClustering_algo_wrapper:
         self.wrapped = AgglomerativeClustering(linkage="average", n_clusters=None, affinity='cosine',
                                                distance_threshold=scale)
 
-
     def fit(self, data):
         return self.wrapped.fit(data)
 

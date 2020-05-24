@@ -25,7 +25,7 @@ def main():
     print(vectors[:10])
     print(labels[:10])
 
-    u_reduse = umap_reduse(30, 0.0)
+    u_reduse = umap_reduse(20, 0.0)
 
     data = np.array(u_reduse.fit(vectors))
     plt.scatter(data[:,0], data[:,1], c=labels, s=3)
