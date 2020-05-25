@@ -125,7 +125,7 @@ def main():
                             pipe_en='__data__/syntagen.udpipe', pipe_ru='__data__/syntagru.model',
                             restrict_vocab=200000, word_limit=100)
 
-    files = random.sample(list_files('/home/vova/PycharmProjects/TGmain/2703'), 400000)
+    files = random.sample(list_files('/home/vova/PycharmProjects/TGmain/2703'), 800000)
     vecs, articles = vectorizer.vectorize_multiple_files_multi(files)
 
     with open('/home/vova/PycharmProjects/TG/__data__/temp_corp', "wb") as f:

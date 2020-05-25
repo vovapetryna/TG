@@ -55,15 +55,18 @@ class article_index:
         self.clusterer = clusterer
 
         self.db = Sqlite3Worker(db_path, max_queue_size=1000)
-        # self.db = sqlite3.connect(db_path, check_same_thread=False)
 
         self.models_ru = {}
         self.models_en = {}
 
         self.publishers = {}
         self.publishers_id = 0
-        print(self.publishers)
-        print(self.publishers_id)
+        self.load_publisher_index()
+
+        self.mean_count = 1
+        self.load_data_info()
+
+        self.mutex = Lock()
 
         for key, value in models_names.items():
             self.models_en[key] = streem_wraper(file=os.path.join(index_clustering_path, value + '_en'))
@@ -75,78 +78,38 @@ class article_index:
     def clear_db(self):
         result = self.db.execute('SELECT name from sqlite_master where type= "table"')
         for name in result:
-            self.db.execute('DELETE FROM %s' % (name))
+            if name[0] != 'data_info':
+                self.db.execute('DELETE FROM %s' % (name))
 
     def add_to_db(self, dict):
-        self.db.execute("INSERT into %s (src, p_time, ttl, thread_id, lang, publisher) VALUES (?,?,?,?,?,?)"
+        self.db.execute("INSERT into %s (src, p_time, ttl, thread_id, lang, publisher, p_length, title)"
+                        " VALUES (?,?,?,?,?,?,?,?)"
                         % (dict["cluster"]),
-                       (dict["src"], dict["p_time"], dict["ttl"], dict["thread_id"], dict["lang"], dict["publisher"]))
+                       (dict["src"], dict["p_time"], dict["ttl"], dict["thread_id"],
+                        dict["lang"], dict["publisher"], dict["length"], dict["title"]))
 
     def load_publisher_index(self):
-        result = self.db.execute('SELECT id, url, count from publisher')
-        self.publishers_id = result[-1][0]
-        for id, url, count in result:
-            self.publishers[url] = {"id": id,"count": count,"modified": 0}
+        result = self.db.execute('SELECT id, url, p_count from publisher')
+        if len(result) > 0:
+            self.publishers_id = result[-1][0]
+            for id, url, count in result:
+                self.publishers[url] = {"id": id,"count": count,"modified": 0}
+        else:
+            self.publishers_id = 0
+
+    def load_data_info(self):
+        result = self.db.execute('SELECT mean_count FROM data_info;')
+        if len(result) > 0:
+            self.mean_count = result[0][0]
+        else:
+            self.mean_count = 0
 
     def save_publishers(self):
         for key, value in self.publishers.items():
             if value["modified"] == 1:
-                self.db.execute('UPDATE publisher SET count = ? WHERE id = ?', (value["count"], value["id"],))
+                self.db.execute('UPDATE publisher SET p_count=? WHERE id=?', (value["count"], value["id"],))
             elif value["modified"] == 2:
-                self.db.execute('INSERT into publisher (url, count) VALUES (?, ?)', (key, value["count"]))
-
-
-    def test_threading(self, file_list):
-        self.algo = streem_wraper()
-        threads_1 = {"ru": {}, "en": {}}
-        threads_2 = {"ru": {}, "en": {}}
-
-        corpus, articles = self.vectorizer.vectorize_multiple_files_multi(file_list)
-
-        langs = ['ru', 'en']
-
-        reshufles = 0
-
-        for target_lang in langs:
-            indexes = []
-            start = time.time()
-            for id, vec in enumerate(corpus[target_lang]):
-                splited = self.algo.fit([vec])
-                if not splited:
-                    indexes.append(list(self.algo.predict([vec]))[0])
-                else:
-                    reshufles += 1
-                    indexes = list(self.algo.predict(corpus[target_lang][:id]))
-
-            print('time for clustering %.2f' % (time.time() - start))
-
-            for i in range(len(indexes)):
-                if threads_1[target_lang].get(indexes[i]) is None:
-                    threads_1[target_lang][indexes[i]] = [articles[target_lang][i]["title"]]
-                else:
-                    threads_1[target_lang][indexes[i]].append(articles[target_lang][i]["title"])
-
-            for key in threads_1[target_lang].keys():
-                print('%d : %s' % (key, threads_1[target_lang][key]))
-
-            print('reshufled %d times it is %.2f ' % (reshufles, reshufles/len(corpus[target_lang])))
-
-            print('---------------------------------------------------------------------------------')
-
-            start = time.time()
-            self.algo = stream.Birch(n_clusters=None, branching_factor=50, threshold=0.9)
-            self.algo.fit(np.array(corpus[target_lang]))
-            indexes = self.algo.predict(np.array(corpus[target_lang]))
-
-            for i in range(len(indexes)):
-                if threads_2[target_lang].get(indexes[i]) is None:
-                    threads_2[target_lang][indexes[i]] = [articles[target_lang][i]["title"]]
-                else:
-                    threads_2[target_lang][indexes[i]].append(articles[target_lang][i]["title"])
-
-            for key in threads_2[target_lang].keys():
-                print('%d : %s' % (key, threads_2[target_lang][key]))
-            print('time for clustering %.2f' % (time.time() - start))
+                self.db.execute('INSERT into publisher (url, p_count) VALUES (?, ?)', (key, value["count"]))
 
     def fit_models(self, vectors):
         for lang in ['ru', 'en']:
@@ -165,23 +128,44 @@ class article_index:
             for key in models_names.keys():
                 self.models[lang][key].fit(corpus_category[key])
 
-    def index_article(self, text, file_name, ttl, mutex=None):
+    def calc_mean_length(self, files):
+        length = 0
+        articles = 0
+        i = 0
+        for file in files:
+            if i % 1000 == 0:
+                print('files+procesed %d' % i)
+            i += 1
+            vector, lang, article = self.vectorizer.vectorize_article_mean(file)
+            if vector is not None and lang is not None:
+                length += article["length"]
+                articles += 1
+
+        print('mean_length %.2f' % (length/articles))
+
+    def index_article(self, text, file_name, ttl):
         vector, lang, article = self.vectorizer.vectorize_article_mean_text(text)
         if vector is not None and lang is not None:
             cluster = self.clusterer.predict_single_vector(vector, lang)[0]
             if cluster != "not_news":
                 thread_id = self.models[lang][cluster].predict([vector])[0]
 
-                publisher_info = self.publishers.get(article["name"])
-                if publisher_info is not None:
-                    self.publishers[article["name"]]["count"] += 1
-                    self.publishers[article["name"]]["modified"] = \
-                        1 if self.publishers[article["name"]]["modified"] != 2 else 2
-                else:
-                    self.publishers_id += 1
-                    self.publishers[article["name"]] = {"id": self.publishers_id, "count": 1, "modified": 2}
+                self.mutex.acquire()
+                try:
+                    publisher_info = self.publishers.get(article["name"])
+                    if publisher_info is not None:
+                        self.publishers[article["name"]]["count"] += 1
+                        self.publishers[article["name"]]["modified"] = \
+                            1 if self.publishers[article["name"]]["modified"] != 2 else 2
+                    else:
+                        self.publishers_id += 1
+                        self.publishers[article["name"]] = {"id": self.publishers_id, "count": 1, "modified": 2}
+                finally:
+                    self.mutex.release()
 
                 p_time = datetime.datetime.fromisoformat(article["time"]).timestamp()
+
+                self.mean_count += 1
 
                 self.add_to_db({"cluster": cluster,
                                 "src": file_name,
@@ -189,25 +173,194 @@ class article_index:
                                 "ttl": ttl,
                                 "thread_id": int(thread_id),
                                 "lang": lang,
-                                "publisher": self.publishers[article["name"]]["id"]})
+                                "publisher": self.publishers[article["name"]]["id"],
+                                "length": article["length"],
+                                "title": article["title"]})
+                
+                self.db.execute('delete from %s where p_time + ttl < (select max(p_time) from %s)' % (cluster,cluster,))
 
-    def index_multi(self, files, mutex):
+    def db_get_threads(self, period, lang, category):
+        target_time = int(time.time()) - period
+
+        if category != 'any':
+            sql_part = '(SELECT src, title, thread_id, ' \
+                         '(cast(p_length as float)/4503.97*0.3  + '\
+                         'cast(p_count as float)/cast(%d as float)) / '\
+                         '(cast(Abs(%d - p_time) as float) + 0.0001) as metric '\
+                         'FROM %s LEFT JOIN publisher ON %s.publisher=publisher.id '\
+                         'WHERE lang=\'%s\' ORDER BY metric DESC) as t' % (self.mean_count,
+                                                                            target_time,
+                                                                            category, category, lang)
+            sql_full = 'SELECT src, thread_id, title FROM ' + sql_part + \
+            ' WHERE metric > (SELECT metric FROM ' + sql_part + '  LIMIT 1) / 3'
+            self.mutex.acquire()
+
+            result = self.db.execute(sql_full)
+
+            threads = []
+
+            cluster_thread_title = []
+            if len(result) > 0:
+                for _, thread, title in result:
+                    cluster_thread_title.append({"cluster": category, "thread": thread, "title": title})
+                    threads.append(thread)
+                threads = set(threads)
+
+                sql = ''
+                if len(list(threads)) > 0:
+                    sql += ' SELECT '
+                    sql += ' src, thread_id, \'%s\' as cluster FROM %s WHERE (' % (category, category)
+                    for t in list(threads)[:-1]:
+                        sql += 'thread_id = %d or ' % (t)
+                    sql += 'thread_id = %d ) and lang = \'%s\' ' % (list(threads)[-1], lang,)
+                sql += ' order by thread_id'
+
+                result = self.db.execute(sql)
+
+                result_dict = {}
+                if len(result) > 0:
+                    for src, thread_id, cluster in result:
+                        if result_dict.get(str(thread_id) + cluster) is None:
+                            result_dict[str(thread_id) + cluster] = [src]
+                        else:
+                            result_dict[str(thread_id) + cluster].append(src)
+
+                answer_list = []
+
+                max_threads = len(result_dict.keys())
+                for i, item in enumerate(cluster_thread_title):
+                    if i < max_threads:
+                        answer_list.append({"title": item["title"],
+                                            "category": item["cluster"],
+                                            "articles": result_dict[str(item["thread"]) + item["cluster"]]})
+                return answer_list
+        else:
+            sql_part = '(SELECT src, title, thread_id,\'society\' as cluster, ' \
+                  '(cast(p_length as float)/4503.97*0.3  + ' \
+                  'cast(p_count as float)/cast(%d as float)) / ' \
+                  '(cast(Abs(%d - p_time) as float) + 0.0001) ' \
+                  'as metric FROM society LEFT JOIN publisher ON society.publisher=publisher.id ' % (self.mean_count,target_time)
+            for key in models_names.keys():
+                if key != 'society':
+                    sql_part += ' union SELECT  src, title, thread_id,\'%s\' as cluster, ' \
+                           '(cast(p_length as float)/4503.97*0.3  + ' \
+                           'cast(p_count as float)/cast(%d as float)) / ' \
+                           '(cast(Abs(%d - p_time) as float) + 0.0001) as metric ' \
+                           'FROM %s LEFT JOIN publisher ON %s.publisher=publisher.id' % (key,
+                                                                                         self.mean_count,
+                                                                                         target_time,
+                                                                                         key, key)
+            sql_part += ' WHERE lang=\'%s\' ORDER BY metric DESC) as t' % (lang,)
+
+            sql_full = 'SELECT src, thread_id, cluster, title FROM ' + sql_part + \
+                       ' WHERE metric > (SELECT metric FROM ' + sql_part + '  LIMIT 1) / 3'
+
+            result = self.db.execute(sql_full)
+
+            hash_thread = {"society": [],
+                  "economy": [],
+                  "technology": [],
+                  "sports": [],
+                  "entertainment": [],
+                  "science": [],
+                  "other": []}
+
+            cluster_thread_title = []
+            if len(result) > 0:
+                for _, thread, cluster, title in result:
+                    cluster_thread_title.append({"cluster": cluster, "thread": thread, "title": title})
+                    hash_thread[cluster].append(thread)
+                for key in hash_thread.keys():
+                    hash_thread[key] = set(hash_thread[key])
+
+                j = 0
+                sql = ''
+                for key, value in hash_thread.items():
+                    if len(list(value)) > 0:
+                        sql += ' SELECT ' if j == 0 else ' UNION SELECT'
+                        sql += ' src, thread_id, \'%s\' as cluster FROM %s WHERE (' % (key, key)
+                        for t in list(value)[:-1]:
+                            sql += 'thread_id = %d or ' % (t)
+                        sql += 'thread_id = %d ) and lang = \'%s\' ' % (list(value)[-1], lang)
+                        j += 1
+                sql += ' order by thread_id'
+
+                result = self.db.execute(sql)
+
+                result_dict = {}
+
+                if len(result) > 0:
+                    for src, thread_id, cluster in result:
+                        if result_dict.get(str(thread_id) + cluster) is None:
+                            result_dict[str(thread_id) + cluster] = [src]
+                        else:
+                            result_dict[str(thread_id) + cluster].append(src)
+
+                answer_list = []
+
+                max_threads = len(result_dict.keys())
+                for i, item in enumerate(cluster_thread_title):
+                    if i < max_threads:
+                        answer_list.append({"title": item["title"],
+                                            "category": item["cluster"],
+                                            "articles": result_dict[str(item["thread"])+item["cluster"]]})
+                return answer_list
+        return None
+
+    def db_delete(self, name):
+        sql_part = '(SELECT src, url,\'society\' as cluster FROM society LEFT JOIN publisher ON society.publisher=publisher.id'
+        for key in models_names.keys():
+            if key != 'society':
+                sql_part += ' union SELECT src, url, \'%s\' as cluster FROM %s ' \
+                            ' LEFT JOIN publisher ON %s.publisher=publisher.id' % (key, key, key)
+        sql_full = 'SELECT src, cluster, url FROM ' + sql_part + ' ) as t WHERE src = \'%s\'' % (name)
+        
+        self.mutex.acquire()
+        try:
+            result = self.db.execute(sql_full)
+            if len(result) == 0:
+                return False
+            else:
+                self.db.execute('DELETE FROM \'%s\' WHERE src = \'%s\'' % (result[0][1], result[0][0],))
+                if self.publishers.get(result[0][2]) is not None:
+                    self.publishers[result[0][2]]["count"] -= 1
+                    self.publishers[result[0][2]]["modified"] = \
+                                1 if self.publishers[result[0][2]]["modified"] != 2 else 2
+        finally:
+            self.mutex.release()
+
+    def get_test(self):
+        for i in range(1000):
+            start = time.time()
+            self.db_get_threads(15635452, 'en', 'any')
+            print('time for 1 get %.4f' % (time.time() - start))
+
+    def get_test_multi(self):
+        threads = []
+
+        for i in range(8):
+            p = Thread(target=self.get_test)
+            p.start()
+            threads.append(p)
+
+        for t in threads:
+            t.join()
+
+    def index_multi(self, files):
         for file in files:
-            self.index_article(file["text"], file["name"], file["ttl"], mutex)
+            self.index_article(file["text"], file["name"], file["ttl"])
     
     def multi_thread_test(self, list_files):
         threads = []
-        mutex = Lock()
         files_text = []
         for file in list_files:
             with open(file, "r") as f:
                 files_text.append({"text": f.read(),
                                    "name": file,
-                                   "ttl": 0,
-                                   "p_time": 0})
+                                   "ttl": 2592000})
 
         for i, files in enumerate(slice_list(files_text, 4)):
-            p = Thread(target=self.index_multi, args=(files,mutex,))
+            p = Thread(target=self.index_multi, args=(files,))
             p.start()
             threads.append(p)
 
@@ -220,6 +373,8 @@ class article_index:
 
         for key, value in self.models_en.items():
             self.models_en[key].save()
+
+        self.db.execute('UPDATE data_info SET mean_count = ? WHERE id=1', (self.mean_count,))
         self.save_publishers()
 
         self.db.close()
@@ -239,7 +394,7 @@ def main():
                         db_path='/home/vova/PycharmProjects/TG/TG.db',
                         index_clustering_path='/home/vova/PycharmProjects/TG/clustering/__data__/index')
 
-    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:10]
+    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:10000]
 
     n_t.clear_db()
 
@@ -250,7 +405,11 @@ def main():
 
     start = time.time()
     n_t.multi_thread_test(files)
-    print('time for indexing 2000 articles %.2f' % (time.time() - start))
+    # n_t.get_test_multi()
+    # print(n_t.db_get_threads(12352342325, 'ru', 'sports'))
+    # for file in files:
+    #     n_t.db_delete(file)
+    print('time for indexing 200 articles %.2f' % (time.time() - start))
     #
     # time_sum = 0.0
     # for file in files:

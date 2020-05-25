@@ -44,7 +44,8 @@ def parse_article(text):
         for pi in p:
             p_content += " " + pi.text.strip()
 
-    return {"name": name,
+    return {"length": len(text),
+            "name": name,
             "time": time,
             "title": title,
             "description": description,
