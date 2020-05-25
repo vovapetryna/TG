@@ -6,25 +6,34 @@ from threading import Timer
 from furl import furl
 from socketserver import ThreadingMixIn
 import time
+import json
 
-Entities = {}
+from clustering import index_former
 
-def remove_element(name_id):
-    print("Called deleter {}".format(name_id))
-
-    is_exist_in_dictionary = Entities.get(name_id) is not None
-
-    if is_exist_in_dictionary:
-        print("actually deleted")
-        Entities.pop(name_id)
-
-    return is_exist_in_dictionary
+#
+# Entities = {}
+#
+# def remove_element(name_id):
+#     print("Called deleter {}".format(name_id))
+#
+#     is_exist_in_dictionary = Entities.get(name_id) is not None
+#
+#     if is_exist_in_dictionary:
+#         print("actually deleted")
+#         Entities.pop(name_id)
+#
+#     return is_exist_in_dictionary
 
 class HandlerClass(BaseHTTPRequestHandler):
-    def _set_response(self):
+    def _set_response(self, vectorizer, clusterer, db_path, index_clustering_path):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
+        self.indexer = index_former.article_index(vectorizer=vectorizer,
+                                                  clusterer=clusterer,
+                                                  db_path=db_path,
+                                                  index_clustering_path=index_clustering_path)
+
 
     def do_GET(self):
         logging.info("GET request,\nPath: %s\nHeaders:\n%s\n", str(self.path), str(self.headers))
@@ -37,7 +46,7 @@ class HandlerClass(BaseHTTPRequestHandler):
         category = query.args['category']
     
         # replace by deep copy?
-        filtered_data = Entities
+        filtered_data = json.dumps(self.indexer.db_get_threads(period, lang_code, category))
 
         print("{} | {} | {}".format(period, lang_code, category))
         # apply filters <period>
@@ -53,19 +62,10 @@ class HandlerClass(BaseHTTPRequestHandler):
         index = self.path.split('?')[0]
         is_replaced = False
 
-        if Entities.get(index) is not None:
-            is_replaced = True
-            remove_element(index)
-
-        Entities[index] = str(self.rfile.read(content_length).decode('utf-8'))
-
-        #delete after time excedes itself
         time_to_live = int(self.headers['Cache-Control'].split('=')[1])
-        t = Timer(time_to_live, remove_element, [index])
-        t.start()  # after time_to_live seconds, remove_element will be called
+        text = str(self.rfile.read(content_length).decode('utf-8'))
 
-        logging.info("POST request,\nPath: %s\nHeaders:\n%s\n\nBody:\n%s\n",
-                str(self.path), str(self.headers), Entities[index])
+        is_replaced = self.indexer.index_article(text, index, time_to_live)
 
         #response to client
         self._set_response()
@@ -77,8 +77,7 @@ class HandlerClass(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         index = self.path.split('?')[0]
-        result = remove_element(index)
-
+        result = self.indexer.db_delete(index)
         self._set_response()
         if result:
             self.wfile.write("HTTP/1.1 204 No Content".encode('utf-8'))

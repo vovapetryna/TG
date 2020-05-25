@@ -19,13 +19,13 @@ class Vectorizer:
     def __init__(self, model_file_ru, model_file_en, pipe_ru, pipe_en, restrict_vocab=500000, word_limit=100):
         self.word_limit = word_limit
         self.restrict_vocab = restrict_vocab
-        print('vectorizer start loading')
+        # print('vectorizer start loading')
         start_load = time.time()
         pool = Pool(2)
         self.model_ru, self.model_en = pool.map(self.load_word2vec_lambda,
                                                 [model_file_ru, model_file_en])
         pool.close()
-        print('loaded word2vec : time %f' % (time.time() - start_load))
+        # print('loaded word2vec : time %f' % (time.time() - start_load))
 
         self.text_process = TextProcess(modelfile_ru=pipe_ru, modelfile_en=pipe_en)
 
@@ -47,7 +47,8 @@ class Vectorizer:
                 vector = self.vectorize_sentence_mean(article["tagged_text"], lang)
                 return vector, lang, article
         except Exception as e:
-            print('vectorizing error %s' % str(e))
+            pass
+            # print('vectorizing error %s' % str(e))
         return None, None, None
 
     def vectorize_article_mean_text(self, text):
@@ -57,17 +58,18 @@ class Vectorizer:
                 vector = self.vectorize_sentence_mean(article["tagged_text"], lang)
                 return vector, lang, article
         except Exception as e:
-            print('vectorizing error %s' % str(e))
+            pass
+            # print('vectorizing error %s' % str(e))
         return None, None, None
 
     def vectorize_multiple_files(self, file_list, i=None, q=None):
         corpus_vecs = {"ru": [], "en": []}
         corpus_articles = {"ru": [], "en": []}
-        j = 0
+        # j = 0
         for file in file_list:
-            if j % 1000 == 0:
-                print('procesed %.2f %%' % ((j / len(file_list))* 100))
-            j += 1
+            # if j % 1000 == 0:
+            #     print('procesed %.2f %%' % ((j / len(file_list))* 100))
+            # j += 1
             vec, lang, article = self.vectorize_article_mean(file)
             if lang is not None and vec is not None:
                 corpus_vecs[lang].append(vec)

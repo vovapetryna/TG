@@ -8,6 +8,7 @@ from sys_tools import preprocess
 from collections import Counter
 from json import loads
 from threading import Lock
+import ntpath
 
 mutex = Lock()
 
@@ -140,7 +141,7 @@ class TextProcess:
             self.model_en = Model.load(modelfile_en)
             self.process_pipeline_en = Pipeline(self.model_en, 'tokenize', Pipeline.DEFAULT, Pipeline.DEFAULT, 'conllu')
 
-            print('loaded piplines : time %f' % (time.time() - start_load))
+            # print('loaded piplines : time %f' % (time.time() - start_load))
 
         """filter punctuation and number (delete)"""
         self.p_tbl = dict.fromkeys(i for i in range(sys.maxunicode) if unicodedata.category(chr(i)).startswith('P')
@@ -196,9 +197,8 @@ class TextProcess:
                 finally:
                     mutex.release()
                 if lang == 'ru' or lang == 'en':
+                    article["file_name"] = ntpath.basename(src_file)
                     article["tagged_text"] = self.tag(article["text"], lang)[:word_limit]
-                    # article["TF"] = term_frequency(article["tagged_text"])
-                    # print(article["TF"])
                     if article["tagged_text"] == []:
                         return [], ''
                     return article, lang

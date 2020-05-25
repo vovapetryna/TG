@@ -10,11 +10,9 @@ class news_thred:
 
     def form_thread(self, file_list):
         threads = {"ru": {}, "en": {}}
+        threads_names = {"ru": {}, "en": {}}
 
-        start = time.time()
         corpus, articles = self.vectorizer.vectorize_multiple_files_multi(file_list)
-        print('time for loading %.2f' % (time.time() - start))
-
         langs = ['ru', 'en']
 
         for target_lang in langs:
@@ -23,13 +21,19 @@ class news_thred:
 
             for i in range(len(indexes)):
                 if threads[target_lang].get(indexes[i]) is None:
-                    threads[target_lang][indexes[i]] = [articles[target_lang][i]]
+                    threads[target_lang][indexes[i]] = [articles[target_lang][i]["file_name"]]
+                    if len(articles[target_lang][i]["title"]) > 60:
+                        threads_names[target_lang][indexes[i]] = articles[target_lang][i]["title"][:60] + "..."
+                    else:
+                        threads_names[target_lang][indexes[i]] = articles[target_lang][i]["title"]
                 else:
-                    threads[target_lang][indexes[i]].append(articles[target_lang][i])
+                    threads[target_lang][indexes[i]].append(articles[target_lang][i]["file_name"])
+
+            ans = []
 
             for key in threads[target_lang].keys():
-                print(threads[target_lang][key])
-        return threads
+                ans.append({"title": threads_names[target_lang][key], "articles": threads[target_lang][key]})
+        return ans
 
 def main():
     vectorizer = vectorization.Vectorizer(pipe_en='/home/vova/PycharmProjects/TG/vectorizing/__data__/syntagen.udpipe',
@@ -40,8 +44,8 @@ def main():
     n_t = news_thred(vectorizer=vectorizer)
 
     start = time.time()
-    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:20000]
-    n_t.form_thread(files)
+    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:1000]
+    print(n_t.form_thread(files))
     print('time for threading %.2f' % (time.time() - start))
 
 

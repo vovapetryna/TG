@@ -62,8 +62,6 @@ class news_categories:
         vector, lang, article = self.vectorizer.vectorize_article_mean(file_src)
         if vector is not None and lang is not None:
             cluster = self.cluster_predict([vector], lang)[0]
-            if cluster == 12 and lang == 'en':
-                print(article["title"])
             return predict_cluster(cluster, lang, names=names)
 
     def predict_single_vector(self, vector, lang, names=True):
@@ -75,6 +73,39 @@ class news_categories:
 
         return list(map(lambda cluster: predict_cluster(cluster, lang, names=True), clusters))
 
+    def predict_news(self, files):
+        corpus, articles = self.vectorizer.vectorize_multiple_files_multi(files)
+        news = []
+        for target_lang in ['ru', 'en']:
+            clusters = self.cluster_predict(corpus[target_lang], target_lang)
+
+            for i, cluster in enumerate(clusters):
+                if cluster != 8:
+                    news.append(articles[target_lang][i]["file_name"])
+        return {"articles": news}
+
+    def predict_categories(self, files):
+        corpus, articles = self.vectorizer.vectorize_multiple_files_multi(files)
+        categories_dict = {"society": [],
+                           "economy": [],
+                           "technology": [],
+                           "sports": [],
+                           "entertainment": [],
+                           "science": [],
+                           "other": []}
+
+        for target_lang in ['ru', 'en']:
+            clusters = self.predict_multiple(corpus[target_lang], target_lang)
+            for i, cluster in enumerate(clusters):
+                if cluster[0] != "not_news":
+                    categories_dict[cluster[0]].append(articles[target_lang][i]["file_name"])
+        ans = []
+
+        for key, value in categories_dict.items():
+            ans.append({"category": key, "articles": categories_dict[key]})
+
+        return ans
+
 def main():
     vectorizer = vectorization.Vectorizer(pipe_en='/home/vova/PycharmProjects/TG/vectorizing/__data__/syntagen.udpipe',
                                           model_file_en='/home/vova/PycharmProjects/TG/vectorizing/__data__/model_en.bin',
@@ -85,10 +116,9 @@ def main():
     n_c = news_categories(vectorizer, model_file_ru='/home/vova/PycharmProjects/TG/clustering/__data__/model_ru',
                           model_file_en='/home/vova/PycharmProjects/TG/clustering/__data__/model_en')
 
-    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:30000]
+    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:1000]
 
-    for file in files:
-        n_c.predict_single(file)
+    print(n_c.predict_categories(files))
 
 
 if __name__ == "__main__":

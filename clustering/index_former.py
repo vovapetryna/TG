@@ -12,6 +12,7 @@ from threading import Thread
 from multiprocessing import Lock
 from math import ceil
 import datetime
+from vectorizing.text_process import parse_article
 
 models_names = {"society": "model_soci",
                   "economy": "model_econ",
@@ -88,6 +89,10 @@ class article_index:
                        (dict["src"], dict["p_time"], dict["ttl"], dict["thread_id"],
                         dict["lang"], dict["publisher"], dict["length"], dict["title"]))
 
+    def update_db(self, dict):
+        self.db.execute('UPDATE %s SET p_time = ?, ttl = ?, title = ? WHERE src = ?' % (dict["cluster"],),
+                        (dict["p_time"], dict["ttl"], dict["title"], dict["src"]))
+
     def load_publisher_index(self):
         result = self.db.execute('SELECT id, url, p_count from publisher')
         if len(result) > 0:
@@ -144,40 +149,66 @@ class article_index:
         print('mean_length %.2f' % (length/articles))
 
     def index_article(self, text, file_name, ttl):
-        vector, lang, article = self.vectorizer.vectorize_article_mean_text(text)
-        if vector is not None and lang is not None:
-            cluster = self.clusterer.predict_single_vector(vector, lang)[0]
-            if cluster != "not_news":
-                thread_id = self.models[lang][cluster].predict([vector])[0]
+        sql_part = '(SELECT src, \'society\' as cluster FROM society LEFT JOIN publisher ON society.publisher=publisher.id'
+        for key in models_names.keys():
+            if key != 'society':
+                sql_part += ' union SELECT src, \'%s\' as cluster FROM %s ' \
+                            ' LEFT JOIN publisher ON %s.publisher=publisher.id' % (key, key, key)
+        sql_full = 'SELECT cluster FROM ' + sql_part + ' ) as t WHERE src = \'%s\'' % (file_name)
+        if_exist = self.db.execute(sql_full)
 
-                self.mutex.acquire()
-                try:
-                    publisher_info = self.publishers.get(article["name"])
-                    if publisher_info is not None:
-                        self.publishers[article["name"]]["count"] += 1
-                        self.publishers[article["name"]]["modified"] = \
-                            1 if self.publishers[article["name"]]["modified"] != 2 else 2
-                    else:
-                        self.publishers_id += 1
-                        self.publishers[article["name"]] = {"id": self.publishers_id, "count": 1, "modified": 2}
-                finally:
-                    self.mutex.release()
+        if len(if_exist) == 0:
+            vector, lang, article = self.vectorizer.vectorize_article_mean_text(text)
+            if vector is not None and lang is not None:
+                cluster = self.clusterer.predict_single_vector(vector, lang)[0]
+                if cluster != "not_news":
+                    thread_id = self.models[lang][cluster].predict([vector])[0]
 
-                p_time = datetime.datetime.fromisoformat(article["time"]).timestamp()
+                    self.mutex.acquire()
+                    try:
+                        publisher_info = self.publishers.get(article["name"])
+                        if publisher_info is not None:
+                            self.publishers[article["name"]]["count"] += 1
+                            self.publishers[article["name"]]["modified"] = \
+                                1 if self.publishers[article["name"]]["modified"] != 2 else 2
+                        else:
+                            self.publishers_id += 1
+                            self.publishers[article["name"]] = {"id": self.publishers_id, "count": 1, "modified": 2}
+                    finally:
+                        self.mutex.release()
 
-                self.mean_count += 1
+                    p_time = datetime.datetime.fromisoformat(article["time"]).timestamp()
 
-                self.add_to_db({"cluster": cluster,
-                                "src": file_name,
-                                "p_time": p_time,
-                                "ttl": ttl,
-                                "thread_id": int(thread_id),
-                                "lang": lang,
-                                "publisher": self.publishers[article["name"]]["id"],
-                                "length": article["length"],
-                                "title": article["title"]})
+                    self.mean_count += 1
+
+                    self.add_to_db({"cluster": cluster,
+                                    "src": file_name,
+                                    "p_time": p_time,
+                                    "ttl": ttl,
+                                    "thread_id": int(thread_id),
+                                    "lang": lang,
+                                    "publisher": self.publishers[article["name"]]["id"],
+                                    "length": article["length"],
+                                    "title": article["title"]})
+
+                    self.db.execute('delete from %s where p_time + ttl < (select max(p_time) from %s)' %
+                                    (cluster, cluster,))
+
+                    return False
+        else:
+            article = parse_article(text)
+            p_time = datetime.datetime.fromisoformat(article["time"]).timestamp()
+
+            self.update_db({"cluster": if_exist[0][0],
+                            "src": file_name,
+                            "p_time": p_time,
+                            "ttl": ttl,
+                            "title": article["title"]})
                 
-                self.db.execute('delete from %s where p_time + ttl < (select max(p_time) from %s)' % (cluster,cluster,))
+            self.db.execute('delete from %s where p_time + ttl < (select max(p_time) from %s)' %
+                            (if_exist[0][0],if_exist[0][0],))
+
+            return True
 
     def db_get_threads(self, period, lang, category):
         target_time = int(time.time()) - period
@@ -328,6 +359,7 @@ class article_index:
                                 1 if self.publishers[result[0][2]]["modified"] != 2 else 2
         finally:
             self.mutex.release()
+        return True
 
     def get_test(self):
         for i in range(1000):
@@ -394,9 +426,9 @@ def main():
                         db_path='/home/vova/PycharmProjects/TG/TG.db',
                         index_clustering_path='/home/vova/PycharmProjects/TG/clustering/__data__/index')
 
-    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:10000]
+    files = preprocess.list_files('/home/vova/PycharmProjects/TGmain/2703')[:1000]
 
-    n_t.clear_db()
+    # n_t.clear_db()
 
     # with open('/home/vova/PycharmProjects/TG/__data__/temp_corp', "rb") as f:
     #     corpus = pickle.loads(f.read())
