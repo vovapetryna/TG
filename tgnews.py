@@ -5,6 +5,8 @@ from clustering.thread_former import news_thred
 from vectorizing import lang_detector, vectorization
 from json import dumps
 
+import server_app
+
 # python tgnews languages <source_dir>
 # python tgnews news <source_dir>
 # python tgnews categories <source_dir>
@@ -13,8 +15,6 @@ from json import dumps
 COMMAND_INDEX = 1
 FOLDER_INDEX = 2
 
-for i in range(len(sys.argv)):
-    print("iteration : {}, arg: {}".format(i, sys.argv[i]))
 
 def get_html_files(path):
     result = []
@@ -22,9 +22,6 @@ def get_html_files(path):
         for file in files:
             if '.html' in file:
                 result.append(os.path.join(root, file))
-
-    for f in result:
-        print(f)
 
     return result
 
@@ -91,19 +88,28 @@ def threads_handle(file_names_list):
 
     print(dumps(n_t.form_thread(file_names_list)))
 
-if len(sys.argv) < FOLDER_INDEX:
-    exit(0)
+if __name__ == "__main__":
 
-input_filenames = get_html_files(sys.argv[FOLDER_INDEX])
+    for i in range(len(sys.argv)):
+        print("iteration : {}, arg: {}".format(i, sys.argv[i]))
 
-if sys.argv[COMMAND_INDEX] == "language":
-    language_handle(input_filenames)
+    if len(sys.argv) < FOLDER_INDEX:
+        exit(0)
 
-if sys.argv[COMMAND_INDEX] == "news":
-    news_handle(input_filenames)
+    if sys.argv[COMMAND_INDEX] == "server":
+        server_app.init_server(port=int(sys.argv[FOLDER_INDEX]))
+    else:
 
-if sys.argv[COMMAND_INDEX] == "categories":
-    categories_handle(input_filenames)
+        input_filenames = get_html_files(sys.argv[FOLDER_INDEX])
 
-if sys.argv[COMMAND_INDEX] == "threads":
-    threads_handle(input_filenames)
+        if sys.argv[COMMAND_INDEX] == "languages":
+            language_handle(input_filenames)
+
+        if sys.argv[COMMAND_INDEX] == "news":
+            news_handle(input_filenames)
+
+        if sys.argv[COMMAND_INDEX] == "categories":
+            categories_handle(input_filenames)
+
+        if sys.argv[COMMAND_INDEX] == "threads":
+            threads_handle(input_filenames)

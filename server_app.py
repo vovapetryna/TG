@@ -7,8 +7,11 @@ from furl import furl
 from socketserver import ThreadingMixIn
 import time
 import json
+import os
 
 from clustering import index_former
+from clustering import news_type
+from vectorizing.vectorization import Vectorizer
 
 #
 # Entities = {}
@@ -24,18 +27,29 @@ from clustering import index_former
 #
 #     return is_exist_in_dictionary
 
-class HandlerClass(BaseHTTPRequestHandler):
-    def _set_response(self, vectorizer, clusterer, db_path, index_clustering_path):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.indexer = index_former.article_index(vectorizer=vectorizer,
-                                                  clusterer=clusterer,
-                                                  db_path=db_path,
-                                                  index_clustering_path=index_clustering_path)
+def init_vectorizer():
+    dir = os.path.dirname(__file__)
+    word2vec_ru = os.path.join(dir, '__data__', 'model_ru.bin')
+    word2vec_en = os.path.join(dir, '__data__', 'model_en.bin')
+    pipe_ru = os.path.join(dir, '__data__', 'syntagru.model')
+    pipe_en = os.path.join(dir, '__data__', 'syntagen.udpipe')
 
+    return Vectorizer(model_file_en=word2vec_en, model_file_ru=word2vec_ru,
+                                pipe_en=pipe_en, pipe_ru=pipe_ru, restrict_vocab=200000, word_limit=100)
+
+def init_clusterer(vectorizer):
+    dir = os.path.dirname(__file__)
+    model_en = os.path.join(dir, '__data__', 'model_en')
+    model_ru = os.path.join(dir, '__data__', 'model_ru')
+
+    return news_type.news_categories(vectorizer, model_en, model_ru)
+
+class HandlerClass(BaseHTTPRequestHandler):
 
     def do_GET(self):
+        if is_db_loaded:
+            self.wfile.write("HTTP/1.1 503 Service Unavailable")
+
         logging.info("GET request,\nPath: %s\nHeaders:\n%s\n", str(self.path), str(self.headers))
 
         query = furl(self.path)
@@ -46,29 +60,27 @@ class HandlerClass(BaseHTTPRequestHandler):
         category = query.args['category']
     
         # replace by deep copy?
-        filtered_data = json.dumps(self.indexer.db_get_threads(period, lang_code, category))
+        global indexer
+        filtered_data = json.dumps(indexer.db_get_threads(period, lang_code, category))
 
-        print("{} | {} | {}".format(period, lang_code, category))
         # apply filters <period>
         # apply filters <lang_code>
         # apply filters <category>
-        
-        self._set_response()
-        # valid json format expected
+
         self.wfile.write(str(filtered_data).encode('utf-8'))
 
     def do_PUT(self):
+        if is_db_loaded:
+            self.wfile.write("HTTP/1.1 503 Service Unavailable")
+
         content_length = int(self.headers['Content-Length']) # <--- Gets the size of data
         index = self.path.split('?')[0]
         is_replaced = False
 
         time_to_live = int(self.headers['Cache-Control'].split('=')[1])
         text = str(self.rfile.read(content_length).decode('utf-8'))
-
-        is_replaced = self.indexer.index_article(text, index, time_to_live)
-
-        #response to client
-        self._set_response()
+        global indexer
+        is_replaced = indexer.index_article(self=indexer, text=text, file_name=index, ttl=time_to_live)
 
         if is_replaced:
             self.wfile.write("HTTP/1.1  204 Updated".encode('utf-8'))
@@ -76,9 +88,13 @@ class HandlerClass(BaseHTTPRequestHandler):
             self.wfile.write("HTTP/1.1  201 Created".encode('utf-8'))
 
     def do_DELETE(self):
+        if is_db_loaded:
+            self.wfile.write("HTTP/1.1 503 Service Unavailable")
+
         index = self.path.split('?')[0]
-        result = self.indexer.db_delete(index)
-        self._set_response()
+        global indexer
+        result = indexer.db_delete(index)
+
         if result:
             self.wfile.write("HTTP/1.1 204 No Content".encode('utf-8'))
         else:
@@ -87,11 +103,29 @@ class HandlerClass(BaseHTTPRequestHandler):
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     pass
 
+indexer = index_former.article_index
+is_db_loaded = False
 
 def init_server(host = '', port=8080):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
+
     httpd = ThreadedHTTPServer(server_address, HandlerClass)
+
+    vectorizer = init_vectorizer()
+    clusterer = init_clusterer(vectorizer)
+
+    dir = os.path.dirname(__file__)
+
+    db_path = os.path.join(dir, 'TG.db')
+    index_clustering_path = os.path.join(dir, '__data__', 'index')
+
+    indexer = index_former.article_index(vectorizer=vectorizer,
+                                         clusterer=clusterer,
+                                         db_path=db_path,
+                                         index_clustering_path=index_clustering_path)
+    is_db_loaded = True
+
     logging.info('Starting httpd...\n')
     try:
         httpd.serve_forever()
