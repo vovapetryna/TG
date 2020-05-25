@@ -56,6 +56,7 @@ class article_index:
         self.clusterer = clusterer
 
         self.db = Sqlite3Worker(db_path, max_queue_size=1000)
+        print(self.db)
 
         self.models_ru = {}
         self.models_en = {}

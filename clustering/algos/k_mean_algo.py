@@ -3,11 +3,11 @@
 from sklearn.cluster import KMeans
 import clustering.common as common
 import pickle
-
 class K_Means_wrapper:
     def __init__(self, src_data=None):
         if src_data is None:
             self.wrapped = KMeans(n_clusters=35, max_iter=500)
+            self.wrapped._n_thread = None
         else:
             self.load(src_data)
 
